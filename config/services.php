@@ -35,4 +35,9 @@ return [
         ],
     ],
 
+    'firebase' => [
+        'credentials' => env('FIREBASE_PRIVATE_KEY_PATH'),
+        'database_url' => env('FIREBASE_DATABASE_URL'),
+    ],
+
 ];

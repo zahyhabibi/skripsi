@@ -11,13 +11,14 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('users', function (Blueprint $table) {
+        Schema::create('heart_rates', function (Blueprint $table) {
             $table->uuid('id')->primary();
-            $table->string('fullname');
-            $table->string('age');
-            $table->string('gender');
-            $table->rememberToken();
+            $table->uuid('user_id')->unique();
+            $table->integer('heart_rate');
+            $table->enum('status', ['normal', 'elevated', 'high'])->default('normal');
+            $table->timestamp('recorded_at')->useCurrent();
             $table->timestamps();
+            $table->foreign('user_id')->references('id')->on('users')->onDelete('cascade');
         });
     }
 
@@ -26,6 +27,7 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('users');
+        Schema::dropIfExists('heart_rate');
+
     }
 };
