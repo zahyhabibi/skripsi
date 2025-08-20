@@ -37,7 +37,11 @@ return [
 
     'firebase' => [
         'credentials' => storage_path('app/'.env('FIREBASE_PRIVATE_KEY_PATH')),
-        'database_url' => env('FIREBASE_DATABASE_URL'),
+        'api_key' => env('FIREBASE_API_KEY'),
+        'project_id' => env('FIREBASE_PROJECT_ID'),
+        'database' => [
+            'url' => env('FIREBASE_DATABASE_URL'),
+        ],
     ],
 
 ];
