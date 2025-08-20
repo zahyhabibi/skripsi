@@ -3,9 +3,6 @@
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\PulseSensorController;
 
-// Route::get('/', function () {
-//     return view('welcome');
-// });
 
 Route::get('/', [PulseSensorController::class, 'index']);
 Route::get('/api/users/search', [PulseSensorController::class, 'searchUsers'])->name('api.users.search');
