@@ -4,15 +4,15 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use Kreait\Firebase\Factory;
-use Kreait\Firebase\ServiceAccount;
-use Kreait\Firebase\Database;
 use App\Models\User;
 use App\Models\HeartRate;
 use Illuminate\Support\Facades\Validator;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Symfony\Component\Process\Process;
+use Kreait\Firebase\ServiceAccount;
+use Kreait\Firebase\Database;
+use Illuminate\Support\Facades\Http;
 use Symfony\Component\Process\Exception\ProcessFailedException;
 
 
@@ -27,14 +27,6 @@ class PulseSensorController extends Controller
     public function index()
     {
         $users = User::all();
-
-        // dd([
-        //     'env' => env('FIREBASE_PRIVATE_KEY_PATH'),
-        //     'resolved' => storage_path('app/' . env('FIREBASE_PRIVATE_KEY_PATH')),
-        //     'exists' => file_exists(storage_path('app/' . env('FIREBASE_PRIVATE_KEY_PATH'))),
-        //     'users' => $users,
-        // ]);
-
         return view('index', ['users' => $users]);
     }
 
@@ -69,119 +61,171 @@ class PulseSensorController extends Controller
     /**
      * DISESUAIKAN TOTAL: Fungsi ini sekarang hanya menggunakan 3 parameter.
      */
- public function getPrediction(Request $request)
-    {
-        // 1. Validasi input dari form
-        $validator = Validator::make($request->all(), [
-            'age' => 'required|integer|min:1',
-            'gender' => 'required|integer|in:0,1',
-            'heart_rate' => 'required|numeric|min:30',
-        ]);
+public function getPrediction(Request $request)
+{
+    $validator = Validator::make($request->all(), [
+        'age'        => 'required|integer|min:1',
+        'gender'     => 'required|integer|in:0,1',
+        'heart_rate' => 'required|numeric|min:30',
+    ]);
 
-        if ($validator->fails()) {
-            return redirect()->back()->withErrors($validator)->withInput();
-        }
-        
-        // Ambil data yang sudah divalidasi
-        $validatedData = $validator->validated();
-        
-        $predictionResult = null;
-        $apiError = null;
+    if ($validator->fails()) {
+        return redirect()->back()->withErrors($validator)->withInput();
+    }
 
-        try {
-        
+    $v = $validator->validated();
 
-  $script = base_path('scripts/hf_predict.mjs');
-            $command = sprintf(
-                'node %s %d %d %f',
-                escapeshellarg($script),
-                (int) $validatedData['age'],
-                (int) $validatedData['gender'],
-                (float) $validatedData['heart_rate']
-            );
+    // TODO: SESUAIKAN urutan berikut dengan "describe" dari Space kamu!
+    $payload = [
+        'fn'   => '/predict', // atau dari describe
+        'data' => [
+            (float)$v['heart_rate'],
+            (int)$v['age'],
+            (int)$v['gender'], // 0/1 bila Space memang menerima angka; jika label string, ubah ke "male"/"female"
+        ],
+    ];
 
-            Log::info('Memanggil Hugging Face API via gradio client', ['command' => $command]);
+    $script = base_path('scripts/predict.mjs');
+    if (!file_exists($script)) {
+        return back()->with('apiError', "Script not found: $script");
+    }
 
-            $output = shell_exec($command . ' 2>&1');
-            $decoded = json_decode($output, true);
+    $proc = new Process(
+        ['node', $script, json_encode($payload)],
+        base_path(),
+        [
+            // Public space: token boleh kosong
+            'HF_TOKEN' => env('HF_TOKEN') ?: env('HUGGINGFACE_API_TOKEN'),
+        ]
+    );
+    $proc->setTimeout(60);
+    $proc->run();
 
-            if ($decoded !== null) {
-                $predictionResult = $decoded;
-                Log::info('API Response Success', ['response' => $predictionResult]);
-            } else {
-               $apiError = "Error dari API: " . $output;
-                Log::error('API Prediction Error', ['output' => $output]);
-            }
+    $stdout = $proc->getOutput();
+    $stderr = $proc->getErrorOutput();
+    $json   = json_decode($stdout, true);
 
-        } catch (\Exception $e) {
-            $apiError = "Terjadi kesalahan koneksi ke API: " . $e->getMessage();
-            Log::error('API Connection Error', ['error' => $e->getMessage()]);
-        }
-        
+    $users = User::all();
 
-        $users = User::all();
-
-
+    if (!$proc->isSuccessful() || !$json) {
         return view('index', [
             'users' => $users,
-            'predictionResult' => $predictionResult,
-            'apiError' => $apiError,
-            'inputData' => $request->all()
+            'predictionResult' => null,
+            'apiError' => "Node failed or invalid JSON",
+            'inputData' => $request->all(),
+            'debug' => compact('stdout','stderr')
         ]);
     }
 
+    if (!($json['ok'] ?? false)) {
+        return view('index', [
+            'users' => $users,
+            'predictionResult' => null,
+            'apiError' => $json['error'] ?? 'Space error',
+            'inputData' => $request->all(),
+            'debug' => ['status' => $json['status'] ?? null, 'logs' => $json['logs'] ?? null],
+        ]);
+    }
 
-    public function predictTest()
-{
-    // Contoh payload: sesuaikan dengan endpoint Space kamu
-    $payload = [
-        'fn'   => '/predict',     // ganti jika endpointnya berbeda
-        'data' => [78, 24],       // ganti sesuai urutan input Space (mis: bpm, age, ...)
-        // atau untuk cek skema:
-        // 'describe' => true,
-    ];
+    $proc = new \Symfony\Component\Process\Process(
+    ['node', $script, json_encode($payload)],
+    base_path(),
+    [
+        'HF_SPACE_URL' => env('HF_SPACE_URL'),                      // <— TAMBAH INI
+        'HF_TOKEN'     => env('HF_TOKEN') ?: env('HUGGINGFACE_API_TOKEN'),
+    ]
+);
 
-    $nodeScript = base_path('scripts/predict.mjs');
-
-    // Jalankan "node scripts/predict.mjs '<json>'" dengan ENV yang kita pass dari Laravel
-    $process = new Process([
-        'node',
-        $nodeScript,
-        json_encode($payload),
-    ], null, [ // ENV untuk proses Node
-        'HF_SPACE_URL' => env('HF_SPACE_URL'),
-        'HF_TOKEN'     => env('HF_TOKEN'),
+    return view('index', [
+        'users' => $users,
+        'predictionResult' => $json['result'] ?? null,
+        'apiError' => null,
+        'inputData' => $request->all(),
     ]);
 
-    $process->setTimeout(30); // detik
-    $process->run();
+}
+public function predictDescribe()
+{
+    $script = base_path('scripts/predict.mjs');
 
-    $stdout = $process->getOutput();
-    $stderr = $process->getErrorOutput();
+    $proc = new \Symfony\Component\Process\Process(
+        ['node', $script, json_encode(['describe' => true])],
+        base_path(),
+        [
+            'HF_SPACE_URL' => env('HF_SPACE_URL'),                   // <— TAMBAH INI
+            'HF_TOKEN'     => env('HF_TOKEN') ?: env('HUGGINGFACE_API_TOKEN'),
+        ]
+    );
+    $proc->setTimeout(60);
+    $proc->run();
 
-    // Kalau gagal (exit code != 0) atau output kosong → anggap error
-    if (!$process->isSuccessful()) {
+    $stdout = $proc->getOutput();
+    $stderr = $proc->getErrorOutput();
+
+    return response()->json([
+        'stderr' => $stderr,
+        'result' => json_decode($stdout, true) ?: $stdout,
+    ]);
+}
+
+
+
+public function predictRun(Request $r)
+{
+    // CONTOH SAJA — ganti dengan urutan & tipe input dari describe
+    // Misal: [/predict] butuh [bpm:number, age:number, sex:string, activity:string]
+    $data = [
+        (float) $r->input('bpm'),
+        (int)   $r->input('age'),
+        (string)$r->input('sex'),       // "male" / "female" (sesuai Dropdown label)
+        (string)$r->input('activity'),  // "rest", "walk", dst (sesuai Dropdown)
+    ];
+
+    $payload = [
+        'fn'   => '/predict', // atau nama fungsi yang benar dari describe
+        'data' => $data,
+    ];
+
+    $script = base_path('scripts/predict.mjs');
+
+    $proc = new Process(
+        ['node', $script, json_encode($payload)],
+        base_path(),
+        [
+            'HF_SPACE_URL' => env('HF_SPACE_URL'),
+            'HF_TOKEN'     => env('HF_TOKEN') ?: env('HUGGINGFACE_API_TOKEN'),
+        ]
+    );
+    $proc->setTimeout(60);
+    $proc->run();
+
+    $stdout = $proc->getOutput();
+    $stderr = $proc->getErrorOutput();
+    $json   = json_decode($stdout, true);
+
+    if (!$proc->isSuccessful() || !$json) {
         return response()->json([
             'success' => false,
-            'error'   => 'Node process failed',
+            'reason'  => 'node_failed_or_invalid_json',
             'stderr'  => $stderr,
             'stdout'  => $stdout,
         ], 500);
     }
 
-    $json = json_decode($stdout, true);
-
-    if (!$json || empty($json['ok'])) {
+    if (!($json['ok'] ?? false)) {
         return response()->json([
             'success' => false,
-            'error'   => $json['error'] ?? 'Unknown error',
-            'raw'     => $stdout,
-        ], 500);
+            'reason'  => 'space_error',
+            'error'   => $json['error'] ?? null,
+            'status'  => $json['status'] ?? null,
+            'logs'    => $json['logs'] ?? null,
+        ], 502);
     }
 
     return response()->json([
         'success' => true,
-        'data'    => $json['result'] ?? $json,
+        'data'    => $json['result'] ?? null,
+        'logs'    => $json['logs'] ?? null, // opsional, buat debugging UI
     ]);
 }
 }

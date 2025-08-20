@@ -11,7 +11,12 @@ Route::get('/', [PulseSensorController::class, 'index']);
 Route::get('/api/users/search', [PulseSensorController::class, 'searchUsers'])->name('api.users.search');
 Route::get('/api/get-user-data/{user}', [PulseSensorController::class, 'getUserData'])->name('api.user.data');
 Route::post('/predict-result', [PulseSensorController::class, 'getPrediction'])->name('predict.result');
-Route::get('/predict/test', [PulseSensorController::class, 'predictTest']);
+Route::get('/predict/describe', [PulseSensorController::class, 'predictDescribe']);
+
+Route::get('/hf-config-ping', function () {
+    $res = \Illuminate\Support\Facades\Http::timeout(15)->get('https://zahyhabibi-heartrate-app-ultimate.hf.space/config');
+    return ['status' => $res->status(), 'body' => substr($res->body(), 0, 200)];
+});
 
 
 
