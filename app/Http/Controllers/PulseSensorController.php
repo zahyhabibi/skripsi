@@ -11,6 +11,9 @@ use App\Models\HeartRate;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
+use Symfony\Component\Process\Process;
+use Symfony\Component\Process\Exception\ProcessFailedException;
 
 
 class PulseSensorController extends Controller
@@ -25,12 +28,12 @@ class PulseSensorController extends Controller
     {
         $users = User::all();
 
-        dd([
-            'env' => env('FIREBASE_PRIVATE_KEY_PATH'),
-            'resolved' => storage_path('app/' . env('FIREBASE_PRIVATE_KEY_PATH')),
-            'exists' => file_exists(storage_path('app/' . env('FIREBASE_PRIVATE_KEY_PATH'))),
-            'users' => $users,
-        ]);
+        // dd([
+        //     'env' => env('FIREBASE_PRIVATE_KEY_PATH'),
+        //     'resolved' => storage_path('app/' . env('FIREBASE_PRIVATE_KEY_PATH')),
+        //     'exists' => file_exists(storage_path('app/' . env('FIREBASE_PRIVATE_KEY_PATH'))),
+        //     'users' => $users,
+        // ]);
 
         return view('index', ['users' => $users]);
     }
@@ -87,28 +90,27 @@ class PulseSensorController extends Controller
 
         try {
         
-            $payload = [
-                "data" => [
-                    (int)$validatedData['age'],
-                    (int)$validatedData['gender'],
-                    (float)$validatedData['heart_rate'],
-                ]
-            ];
 
-         
-            Log::info('Memanggil Hugging Face API', ['url' => env('HUGGINGFACE_API_URL'), 'input' => $payload]);
+  $script = base_path('scripts/hf_predict.mjs');
+            $command = sprintf(
+                'node %s %d %d %f',
+                escapeshellarg($script),
+                (int) $validatedData['age'],
+                (int) $validatedData['gender'],
+                (float) $validatedData['heart_rate']
+            );
 
-            $response = Http::withToken(env('HUGGINGFACE_API_TOKEN'))
-                ->timeout(60) 
-                ->post(env('HUGGINGFACE_API_URL'), $payload);
+            Log::info('Memanggil Hugging Face API via gradio client', ['command' => $command]);
 
+            $output = shell_exec($command . ' 2>&1');
+            $decoded = json_decode($output, true);
 
-            if ($response->successful()) {
-                $predictionResult = $response->json();
+            if ($decoded !== null) {
+                $predictionResult = $decoded;
                 Log::info('API Response Success', ['response' => $predictionResult]);
             } else {
-                $apiError = "Error dari API: " . $response->status() . " - " . $response->body();
-                Log::error('API Prediction Error', ['status' => $response->status(), 'body' => $response->body()]);
+               $apiError = "Error dari API: " . $output;
+                Log::error('API Prediction Error', ['output' => $output]);
             }
 
         } catch (\Exception $e) {
@@ -127,4 +129,59 @@ class PulseSensorController extends Controller
             'inputData' => $request->all()
         ]);
     }
+
+
+    public function predictTest()
+{
+    // Contoh payload: sesuaikan dengan endpoint Space kamu
+    $payload = [
+        'fn'   => '/predict',     // ganti jika endpointnya berbeda
+        'data' => [78, 24],       // ganti sesuai urutan input Space (mis: bpm, age, ...)
+        // atau untuk cek skema:
+        // 'describe' => true,
+    ];
+
+    $nodeScript = base_path('scripts/predict.mjs');
+
+    // Jalankan "node scripts/predict.mjs '<json>'" dengan ENV yang kita pass dari Laravel
+    $process = new Process([
+        'node',
+        $nodeScript,
+        json_encode($payload),
+    ], null, [ // ENV untuk proses Node
+        'HF_SPACE_URL' => env('HF_SPACE_URL'),
+        'HF_TOKEN'     => env('HF_TOKEN'),
+    ]);
+
+    $process->setTimeout(30); // detik
+    $process->run();
+
+    $stdout = $process->getOutput();
+    $stderr = $process->getErrorOutput();
+
+    // Kalau gagal (exit code != 0) atau output kosong → anggap error
+    if (!$process->isSuccessful()) {
+        return response()->json([
+            'success' => false,
+            'error'   => 'Node process failed',
+            'stderr'  => $stderr,
+            'stdout'  => $stdout,
+        ], 500);
+    }
+
+    $json = json_decode($stdout, true);
+
+    if (!$json || empty($json['ok'])) {
+        return response()->json([
+            'success' => false,
+            'error'   => $json['error'] ?? 'Unknown error',
+            'raw'     => $stdout,
+        ], 500);
+    }
+
+    return response()->json([
+        'success' => true,
+        'data'    => $json['result'] ?? $json,
+    ]);
+}
 }

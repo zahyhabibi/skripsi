@@ -112,26 +112,25 @@
 
             <!-- Age -->
             <div>
-                <label for="Age" class="block text-sm font-medium text-gray-700 mb-1">Usia (tahun):</label>
-                <input type="number" id="age" name="age" value="{{ old('Age', $inputData['Age'] ?? '') }}" placeholder="Contoh: 55"
+                <label for="age" class="block text-sm font-medium text-gray-700 mb-1">Usia (tahun):</label>
+                <input type="number" id="age" name="age" value="{{ old('age', $inputData['age'] ?? '') }}" placeholder="Contoh: 55"
                        class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 text-base" required>
             </div>
 
             <!-- Gender -->
             <div>
-                <label for="Gender" class="block text-sm font-medium text-gray-700 mb-1">Jenis Kelamin:</label>
-                {{-- DIUBAH: name="Gender", value="1" untuk Laki-laki, value="0" untuk Perempuan --}}
+                <label for="gender" class="block text-sm font-medium text-gray-700 mb-1">Jenis Kelamin:</label>
                 <select id="gender" name="gender" class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 text-base bg-white" required>
-                    <option value="" disabled {{ old('Gender', $inputData['Gender'] ?? '') == '' ? 'selected' : '' }}>Pilih Jenis Kelamin</option>
-                    <option value="1" {{ old('Gender', $inputData['Gender'] ?? '') == '1' ? 'selected' : '' }}>Laki-laki</option>
-                    <option value="0" {{ old('Gender', $inputData['Gender'] ?? '') == '0' ? 'selected' : '' }}>Perempuan</option>
+                     <option value="" disabled {{ old('gender', $inputData['gender'] ?? '') == '' ? 'selected' : '' }}>Pilih Jenis Kelamin</option>
+                    <option value="1" {{ old('gender', $inputData['gender'] ?? '') == '1' ? 'selected' : '' }}>Laki-laki</option>
+                   <option value="0" {{ old('gender', $inputData['gender'] ?? '') == '0' ? 'selected' : '' }}>Perempuan</option>
                 </select>
             </div>
 
             <!-- Heart Rate (Full Width) -->
             <div class="md:col-span-2">
-                <label for="Heart_rate" class="block text-sm font-medium text-gray-700 mb-1">Detak Jantung (BPM):</label>
-                <input type="number" id="heart_rate" name="heart_rate" value="{{ old('Heart_rate', $inputData['Heart_rate'] ?? '') }}" placeholder="Contoh: 80"
+               <label for="heart_rate" class="block text-sm font-medium text-gray-700 mb-1">Detak Jantung (BPM):</label>
+                <input type="number" id="heart_rate" name="heart_rate" value="{{ old('heart_rate', $inputData['heart_rate'] ?? '') }}" placeholder="Contoh: 80"
                        class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 text-base" required>
             </div>
 
@@ -234,9 +233,9 @@
 
                 // Fungsi untuk mereset form
                 const resetForm = () => {
-                    $('#Age').val('');
-                    $('#Gender').val('').trigger('change');
-                    $('#Heart_rate').val('');
+                    $('#age').val('');
+                    $('#gender').val('').trigger('change');
+                    $('#heart_rate').val('');
                     // $('#Blood_sugar').val('');
                 };
 
@@ -250,10 +249,10 @@
                     url: `/api/get-user-data/${userId}`,
                     type: 'GET',
                     success: function(data) {
-                        $('#Age').val(data.age || '');
+                        $('#age').val(data.age || '');
                         // Backend mengirim '1' atau '0', yang cocok dengan value di HTML
-                        $('#Gender').val(data.gender).trigger('change');
-                        $('#Heart_rate').val(data.heart_rate || '');
+                        $('#gender').val(data.gender).trigger('change');
+                        $('#heart_rate').val(data.heart_rate || '');
                         // Coba isi gula darah jika ada di data (opsional)
                         // $('#Blood_sugar').val(data.blood_sugar || '');
                     },
