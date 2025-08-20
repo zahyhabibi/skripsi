@@ -36,6 +36,12 @@ COPY --from=frontend /app/public/build ./public/build
 # Install vendor (production)
 RUN composer install --no-dev --prefer-dist --no-interaction --no-progress
 
+COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+
+EXPOSE 80
+CMD ["/usr/local/bin/docker-entrypoint.sh"]
+
 # Permission untuk cache/logs (opsional)
 RUN chown -R www-data:www-data storage bootstrap/cache
 
