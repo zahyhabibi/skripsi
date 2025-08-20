@@ -4,13 +4,16 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use Kreait\Firebase\Factory;
-use Kreait\Firebase\ServiceAccount;
-use Kreait\Firebase\Database;
 use App\Models\User;
 use App\Models\HeartRate;
 use Illuminate\Support\Facades\Validator;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
+use Symfony\Component\Process\Process;
+use Kreait\Firebase\ServiceAccount;
+use Kreait\Firebase\Database;
+use Illuminate\Support\Facades\Http;
+use Symfony\Component\Process\Exception\ProcessFailedException;
 
 
 class PulseSensorController extends Controller
@@ -24,14 +27,6 @@ class PulseSensorController extends Controller
     public function index()
     {
         $users = User::all();
-
-        dd([
-            'env' => env('FIREBASE_PRIVATE_KEY_PATH'),
-            'resolved' => storage_path('app/' . env('FIREBASE_PRIVATE_KEY_PATH')),
-            'exists' => file_exists(storage_path('app/' . env('FIREBASE_PRIVATE_KEY_PATH'))),
-            'users' => $users,
-        ]);
-
         return view('index', ['users' => $users]);
     }
 
@@ -63,68 +58,32 @@ class PulseSensorController extends Controller
         ]);
     }
 
-    /**
-     * DISESUAIKAN TOTAL: Fungsi ini sekarang hanya menggunakan 3 parameter.
-     */
- public function getPrediction(Request $request)
-    {
-        // 1. Validasi input dari form
-        $validator = Validator::make($request->all(), [
-            'age' => 'required|integer|min:1',
-            'gender' => 'required|integer|in:0,1',
-            'heart_rate' => 'required|numeric|min:30',
-        ]);
+public function getSensorData(User $user = null)
+{
+    try {
 
-        if ($validator->fails()) {
-            return redirect()->back()->withErrors($validator)->withInput();
-        }
+        $reference = $this->database->getReference('data_sensor');
         
-        // Ambil data yang sudah divalidasi
-        $validatedData = $validator->validated();
-        
-        $predictionResult = null;
-        $apiError = null;
+        $snapshot = $reference->getSnapshot();
 
-        try {
-        
-            $payload = [
-                "data" => [
-                    (int)$validatedData['age'],
-                    (int)$validatedData['gender'],
-                    (float)$validatedData['heart_rate'],
-                ]
-            ];
-
-         
-            Log::info('Memanggil Hugging Face API', ['url' => env('HUGGINGFACE_API_URL'), 'input' => $payload]);
-
-            $response = Http::withToken(env('HUGGINGFACE_API_TOKEN'))
-                ->timeout(60) 
-                ->post(env('HUGGINGFACE_API_URL'), $payload);
+        if ($snapshot->exists()) {
+            $data = $snapshot->getValue();
 
 
-            if ($response->successful()) {
-                $predictionResult = $response->json();
-                Log::info('API Response Success', ['response' => $predictionResult]);
-            } else {
-                $apiError = "Error dari API: " . $response->status() . " - " . $response->body();
-                Log::error('API Prediction Error', ['status' => $response->status(), 'body' => $response->body()]);
+            if (isset($data['bpm'])) {
+                return response()->json([
+                    'success' => true,
+                    'heart_rate' => $data['bpm'] 
+                ]);
             }
-
-        } catch (\Exception $e) {
-            $apiError = "Terjadi kesalahan koneksi ke API: " . $e->getMessage();
-            Log::error('API Connection Error', ['error' => $e->getMessage()]);
         }
         
+        return response()->json(['success' => false, 'message' => 'Data BPM sensor tidak ditemukan.'], 404);
 
-        $users = User::all();
-
-
-        return view('index', [
-            'users' => $users,
-            'predictionResult' => $predictionResult,
-            'apiError' => $apiError,
-            'inputData' => $request->all()
-        ]);
+    } catch (\Throwable $e) {
+        Log::error('Firebase sensor data fetch failed: ' . $e->getMessage());
+        return response()->json(['success' => false, 'message' => 'Gagal terhubung ke server data sensor.'], 500);
     }
+}
+
 }
