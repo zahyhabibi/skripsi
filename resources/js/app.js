@@ -17,6 +17,7 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // Variabel untuk menyimpan BPM rata-rata sebelum diganti oleh sensor
     let originalBpm = null;
+    let latestPredictionData = null;
 
     // =======================================================
     // === FUNGSI-FUNGSI HELPER (Tidak Perlu Diubah) =========
@@ -181,29 +182,97 @@ sensorSwitch.addEventListener('change', async (event) => {
         }
     }
 
-    function displaySingleResult(prediction) {
-        resultContainer.style.display = 'block';
-        if (prediction.error) {
-            resultContainer.innerHTML = `<div class="p-4 bg-yellow-50 text-yellow-800 rounded-lg text-center"><strong>Peringatan:</strong> Terjadi kesalahan.</div>`;
-            return;
-        }
-        const topLabel = prediction.label;
-        let highRiskConfidence = 0;
-        prediction.confidences.forEach(item => {
-            if (item.label === 'Risiko Tinggi') highRiskConfidence = item.confidence;
+async function savePredictionToDatabase(dataToSave, saveButton) {
+    try {
+        // 'dataToSave' sudah berisi semua yang kita butuhkan, termasuk 'probabilitas'
+        const response = await fetch('/api/save-prediction', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+            },
+            // Langsung kirim data yang sudah diolah
+            body: JSON.stringify(dataToSave) 
         });
-        const isHighRisk = topLabel === 'Risiko Tinggi';
-        const bgColor = isHighRisk ? 'bg-red-50 border-red-200' : 'bg-green-50 border-green-200';
-        const textColor = isHighRisk ? 'text-red-800' : 'text-green-800';
-        const accentColor = isHighRisk ? 'text-red-600' : 'text-green-600';
-        resultContainer.innerHTML = `
-            <div class="p-6 border rounded-lg text-center ${bgColor}">
-                <h3 class="text-xl font-bold mb-2 ${textColor}">Hasil Prediksi</h3>
-                <p class="text-gray-600">Probabilitas Risiko Tinggi:</p>
-                <p class="text-4xl font-bold my-2 ${accentColor}">${(highRiskConfidence * 100).toFixed(2)}%</p>
-                <p class="mt-4 text-lg font-semibold ${textColor}">Kesimpulan: ${topLabel}</p>
-            </div>`;
+
+        const result = await response.json();
+        if (result.success) {
+            console.log('Prediction saved successfully.');
+            saveButton.innerHTML = `<i class="fas fa-check mr-2"></i>Tersimpan`;
+        } else {
+            console.error('Failed to save prediction:', result.errors);
+            saveButton.innerHTML = `Gagal Menyimpan, Coba Lagi`;
+            saveButton.disabled = false;
+        }
+    } catch (error) {
+        console.error('Error while saving prediction:', error);
+        saveButton.innerHTML = `Error, Coba Lagi`;
+        saveButton.disabled = false;
     }
+}
+
+function displaySingleResult(prediction) {
+    resultContainer.style.display = 'block';
+    
+    if (prediction.error) {
+        resultContainer.innerHTML = `<div class="p-4 bg-yellow-50 text-yellow-800 rounded-lg text-center"><strong>Peringatan:</strong> Terjadi kesalahan.</div>`;
+        return;
+    }
+
+    // 1. Siapkan data untuk disimpan nanti
+    const isNewUser = newUserSwitch.checked;
+    const dataForSaving = {
+        age: parseInt(ageInput.value),
+        gender: parseInt(genderSelect.value),
+        heart_rate: parseInt(heartRateInput.value),
+        hasil: prediction.label,
+        probabilitas: prediction.confidences.find(c => c.label === 'Risiko Tinggi')?.confidence || 0
+    };
+
+    if (isNewUser) {
+        dataForSaving.new_user_name = newUserNameInput.value;
+    } else {
+        dataForSaving.user_id = userSelect.value;
+    }
+    // Simpan data ke variabel global
+    latestPredictionData = dataForSaving;
+
+    // 2. Tampilkan hasil seperti biasa, dengan tambahan tombol "Simpan"
+    const topLabel = prediction.label;
+    const highRiskConfidence = dataForSaving.probabilitas;
+    const isHighRisk = topLabel === 'Risiko Tinggi';
+    const bgColor = isHighRisk ? 'bg-red-50 border-red-200' : 'bg-green-50 border-green-200';
+    const textColor = isHighRisk ? 'text-red-800' : 'text-green-800';
+    const accentColor = isHighRisk ? 'text-red-600' : 'text-green-600';
+    
+    resultContainer.innerHTML = `
+        <div class="p-6 border rounded-lg text-center ${bgColor}">
+            <h3 class="text-xl font-bold mb-2 ${textColor}">Hasil Prediksi</h3>
+            <p class="text-gray-600">Probabilitas Risiko Tinggi:</p>
+            <p class="text-4xl font-bold my-2 ${accentColor}">${(highRiskConfidence * 100).toFixed(2)}%</p>
+            <p class="mt-4 text-lg font-semibold ${textColor}">Kesimpulan: ${topLabel}</p>
+            
+            <div class="mt-6">
+                <button id="save-prediction-btn" class="bg-blue-600 text-white font-semibold py-2 px-5 rounded-lg shadow-md hover:bg-blue-700 transition-colors">
+                    <i class="fas fa-save mr-2"></i>Simpan Hasil
+                </button>
+            </div>
+        </div>`;
+
+    // 3. Tambahkan event listener ke tombol yang baru dibuat
+    const saveButton = document.getElementById('save-prediction-btn');
+    if (saveButton) {
+        saveButton.addEventListener('click', () => {
+            if (latestPredictionData) {
+                // Beri feedback visual saat tombol diklik
+                saveButton.disabled = true;
+                saveButton.innerHTML = `<i class="fas fa-spinner fa-spin mr-2"></i>Menyimpan...`;
+                // Panggil fungsi simpan yang sudah ada
+                savePredictionToDatabase(latestPredictionData, saveButton);
+            }
+        });
+    }
+}
 
     async function startSequentialPrediction(dataFromCsv) {
         resultContainer.style.display = 'block';
@@ -228,7 +297,7 @@ sensorSwitch.addEventListener('change', async (event) => {
                     <tr>
                         <th class="px-4 py-2">#</th><th class="px-4 py-2">Nama</th><th class="px-4 py-2">Age</th>
                         <th class="px-4 py-2">Gender</th><th class="px-4 py-2">Heart Rate</th>
-                        <th class="px-4 py-2">Hasil</th><th class="px-4 py-2">Keyakinan</th>
+                        <th class="px-4 py-2">Hasil</th><th class="px-4 py-2">Probabilitas</th>
                     </tr>
                 </thead>
                 <tbody>${initialRowsHtml}</tbody>

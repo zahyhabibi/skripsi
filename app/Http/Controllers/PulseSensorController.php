@@ -14,7 +14,7 @@ use Kreait\Firebase\ServiceAccount;
 use Kreait\Firebase\Database;
 use Illuminate\Support\Facades\Http;
 use Symfony\Component\Process\Exception\ProcessFailedException;
-
+use App\Models\ResultPrediction;
 
 class PulseSensorController extends Controller
 {
@@ -84,6 +84,62 @@ public function getSensorData(User $user = null)
         Log::error('Firebase sensor data fetch failed: ' . $e->getMessage());
         return response()->json(['success' => false, 'message' => 'Gagal terhubung ke server data sensor.'], 500);
     }
+}
+
+
+public function savePrediction(Request $request)
+{
+    $validator = Validator::make($request->all(), [
+        'user_id' => 'nullable|exists:users,id',
+        'new_user_name' => 'nullable|string|max:255',
+        'age' => 'required|integer',
+        'gender' => 'required|integer|in:0,1',
+        'heart_rate' => 'required|integer',
+        'hasil' => 'required|string',
+        'probabilitas' => 'required|numeric',
+    ]);
+
+    if ($validator->fails()) {
+        return response()->json(['success' => false, 'errors' => $validator->errors()], 422);
+    }
+
+    $validated = $validator->validated();
+    $userId = $validated['user_id'] ?? null;
+    $name = '';
+    $genderText = $validated['gender'] == 1 ? 'Male' : 'Female';
+
+    if (!empty($validated['new_user_name'])) {
+        $newUser = User::create([
+            'name' => $validated['new_user_name'],
+            'age' => $validated['age'],
+            'gender' => $validated['gender'] == 1 ? 'male' : 'female',
+        ]);
+        $userId = $newUser->id;
+        $name = $newUser->name;
+    } else if ($userId) {
+        $user = User::find($userId);
+        if ($user) {
+             $name = $user->name;
+        }
+    }
+    // dd((new \App\Models\ResultPrediction)->getFillable());
+ 
+    if (empty($name)) {
+        $name = 'Data Manual';
+    }
+
+ 
+    ResultPrediction::create([
+        'user_id' => $userId,
+        'name' => $name,
+        'age' => $validated['age'],
+        'gender' => $genderText,
+        'heart_rate' => $validated['heart_rate'],
+        'hasil' => $validated['hasil'],
+        'probabilitas' => $validated['probabilitas'],
+    ]);
+
+    return response()->json(['success' => true, 'message' => 'Hasil prediksi berhasil disimpan.']);
 }
 
 }

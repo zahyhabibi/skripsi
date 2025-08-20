@@ -11,7 +11,7 @@ class User extends Model
     use HasFactory, HasUuids;
 
     protected $fillable = [
-        'fullname',
+        'name',
         'age',
         'gender',
     ];

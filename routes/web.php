@@ -10,7 +10,7 @@ use App\Http\Controllers\PulseSensorController;
 Route::get('/', [PulseSensorController::class, 'index']);
 Route::get('/api/users/search', [PulseSensorController::class, 'searchUsers'])->name('api.users.search');
 Route::get('/api/get-user-data/{user}', [PulseSensorController::class, 'getUserData']);
-// Route::post('/predict-result', [PulseSensorController::class, 'getPrediction'])->name('predict.result');
+Route::post('/api/save-prediction', [PulseSensorController::class, 'savePrediction']);
 
 
 Route::get('/debug-firebase', function () {
