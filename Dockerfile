@@ -39,8 +39,6 @@ RUN composer install --no-dev --prefer-dist --no-interaction --no-progress
 COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
-RUN php artisan migrate:fresh
-
 EXPOSE 80
 CMD ["/usr/local/bin/docker-entrypoint.sh"]
 
