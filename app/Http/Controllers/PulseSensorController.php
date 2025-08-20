@@ -4,11 +4,16 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use Kreait\Firebase\Factory;
+use Kreait\Firebase\ServiceAccount;
 use Kreait\Firebase\Database;
-use Illuminate\Support\Facades\Http; // <-- BARIS BARU: Import HTTP Client Laravel
-use Illuminate\Support\Facades\Log;  // <-- BARIS BARU: Untuk mencatat log jika ada error
+use App\Models\User;
+use App\Models\HeartRate;
+use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 
-class SensorController extends Controller
+
+class PulseSensorController extends Controller
 {
     protected $database;
 
@@ -16,93 +21,110 @@ class SensorController extends Controller
     {
         $this->database = $firebaseFactory->createDatabase();
     }
-
-    /**
-     * Metode baru untuk mengambil data sensor, mengirimkannya ke Colab untuk prediksi,
-     * dan menampilkan hasilnya.
-     */
-    public function getAndPredictData()
+    public function index()
     {
-        try {
-            // 1. AMBIL DATA DARI FIREBASE (MODIFIKASI)
-            // Kita ambil 50 data terakhir untuk dianalisis oleh model DNN.
-            // Sesuaikan angka '50' dengan jumlah input yang dibutuhkan model Anda.
-            $reference = $this->database->getReference('sensor_data');
-            $snapshot = $reference->orderByKey()->limitToLast(50)->getValue();
+        $users = User::all();
 
-            if (empty($snapshot)) {
-                return view('predict_result', ['error' => 'Tidak ada data sensor yang ditemukan di Firebase.']);
-            }
+        dd([
+            'env' => env('FIREBASE_PRIVATE_KEY_PATH'),
+            'resolved' => storage_path('app/' . env('FIREBASE_PRIVATE_KEY_PATH')),
+            'exists' => file_exists(storage_path('app/' . env('FIREBASE_PRIVATE_KEY_PATH'))),
+            'users' => $users,
+        ]);
 
-            // 2. SIAPKAN DATA UNTUK MODEL (BARU)
-            // Kita ubah data dari Firebase menjadi array numerik sederhana yang akan dikirim ke Colab.
-            // PENTING: Ganti 'bpm' dengan nama field yang berisi nilai sensor Anda (misal: 'value', 'heart_rate').
-            $sensorValues = array_column($snapshot, 'bpm');
+        return view('index', ['users' => $users]);
+    }
 
-            // Hapus nilai null jika ada data yang tidak lengkap
-            $sensorValues = array_filter($sensorValues, fn($value) => !is_null($value));
 
-            if (empty($sensorValues)) {
-                return view('predict_result', ['error' => 'Data sensor yang ditemukan tidak valid atau tidak memiliki nilai \'bpm\'.']);
-            }
 
-            // 3. PANGGIL API COLAB (BARU)
-            // Ambil URL API dari file .env untuk keamanan dan fleksibilitas.
-            $colabApiUrl = config('services.colab.url');
+    public function searchUsers(Request $request)
+    {
+        $searchTerm = $request->input('q');
+        $users = User::where('name', 'LIKE', '%' . $searchTerm . '%')
+                        ->limit(10)
+                        ->get(['id', 'name as text']);
 
-            if (!$colabApiUrl) {
-                Log::error('URL API Colab belum diatur di .env atau config/services.php');
-                return view('predict_result', ['error' => 'Konfigurasi URL layanan prediksi belum diatur.']);
-            }
+        return response()->json($users);
+    }
 
-            // Kirim data ke API Colab dengan timeout 30 detik
-            $response = Http::timeout(30)->post($colabApiUrl, [
-                'sensor_values' => array_values($sensorValues) // kirim sebagai array biasa
-            ]);
+    public function getUserData(User $user)
+    {
+        $avgHeartRate = HeartRate::where('user_id', $user->id)
+                                    ->latest('recorded_at')
+                                    ->limit(100)
+                                    ->avg('heart_rate');
 
-            // 4. TAMPILKAN HASIL (BARU)
-            if ($response->successful()) {
-                // Jika API call berhasil, kirim data JSON dari Colab ke view
-                return view('predict_result', ['result' => $response->json()]);
-            } else {
-                // Jika gagal, catat error dan tampilkan pesan kesalahan
-                Log::error('Gagal menghubungi API Colab: ' . $response->body());
-                return view('predict_result', ['error' => 'Layanan prediksi sedang tidak aktif atau terjadi kesalahan.']);
-            }
+        $apiGender = ($user->gender === 'male') ? 1 : 0;
 
-        } catch (\Throwable $e) {
-            Log::error('Error di SensorController@getAndPredictData: ' . $e->getMessage());
-            return view('predict_result', ['error' => 'Terjadi kesalahan internal saat memproses data: ' . $e->getMessage()]);
-        }
+        return response()->json([
+            'age' => $user->age,
+            'gender' => $apiGender,
+            'heart_rate' => $avgHeartRate ? round($avgHeartRate) : null,
+        ]);
     }
 
     /**
-     * Metode lama Anda, bisa tetap dipertahankan jika masih dibutuhkan
-     * untuk keperluan lain (misal: debugging API).
+     * DISESUAIKAN TOTAL: Fungsi ini sekarang hanya menggunakan 3 parameter.
      */
-    public function getLatestSensorData()
+ public function getPrediction(Request $request)
     {
-        try {
-            $reference = $this->database->getReference('sensor_data');
-            $snapshot = $reference->limitToLast(1)->getValue();
+        // 1. Validasi input dari form
+        $validator = Validator::make($request->all(), [
+            'age' => 'required|integer|min:1',
+            'gender' => 'required|integer|in:0,1',
+            'heart_rate' => 'required|numeric|min:30',
+        ]);
 
-            if (!empty($snapshot)) {
-                $latestData = reset($snapshot);
-                return response()->json([
-                    'status' => 'success',
-                    'data' => $latestData
-                ]);
-            } else {
-                return response()->json([
-                    'status' => 'success',
-                    'message' => 'No sensor data found.'
-                ]);
-            }
-        } catch (\Throwable $e) {
-            return response()->json([
-                'status' => 'error',
-                'message' => 'Failed to retrieve sensor data: ' . $e->getMessage()
-            ], 500);
+        if ($validator->fails()) {
+            return redirect()->back()->withErrors($validator)->withInput();
         }
+        
+        // Ambil data yang sudah divalidasi
+        $validatedData = $validator->validated();
+        
+        $predictionResult = null;
+        $apiError = null;
+
+        try {
+        
+            $payload = [
+                "data" => [
+                    (int)$validatedData['age'],
+                    (int)$validatedData['gender'],
+                    (float)$validatedData['heart_rate'],
+                ]
+            ];
+
+         
+            Log::info('Memanggil Hugging Face API', ['url' => env('HUGGINGFACE_API_URL'), 'input' => $payload]);
+
+            $response = Http::withToken(env('HUGGINGFACE_API_TOKEN'))
+                ->timeout(60) 
+                ->post(env('HUGGINGFACE_API_URL'), $payload);
+
+
+            if ($response->successful()) {
+                $predictionResult = $response->json();
+                Log::info('API Response Success', ['response' => $predictionResult]);
+            } else {
+                $apiError = "Error dari API: " . $response->status() . " - " . $response->body();
+                Log::error('API Prediction Error', ['status' => $response->status(), 'body' => $response->body()]);
+            }
+
+        } catch (\Exception $e) {
+            $apiError = "Terjadi kesalahan koneksi ke API: " . $e->getMessage();
+            Log::error('API Connection Error', ['error' => $e->getMessage()]);
+        }
+        
+
+        $users = User::all();
+
+
+        return view('index', [
+            'users' => $users,
+            'predictionResult' => $predictionResult,
+            'apiError' => $apiError,
+            'inputData' => $request->all()
+        ]);
     }
 }

@@ -16,12 +16,17 @@ class UserDummy extends Seeder
         // 1. Definisikan data Anda ke dalam sebuah array
         $usersData = [
             [
-                'fullname' => 'dahlah',
+                'name' => 'dedi',
                 'age' => 30,
                 'gender' => 'male',
             ],
             [
-                'fullname' => 'asep',
+                'name' => 'asep',
+                'age' => 19,
+                'gender' => 'male',
+            ],
+            [
+                'name' => 'indriyani',
                 'age' => 25,
                 'gender' => 'female',
             ],
