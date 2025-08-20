@@ -26,10 +26,10 @@
 <style>
     body { font-family: 'Inter', sans-serif; }
 
-    #sensor-switch:checked ~ .dot {
-        transform: translateX(100%);
+    .toggle-checkbox:checked ~ .dot {
+        transform: translateX(140%);
     }
-    #sensor-switch:checked ~ .block {
+    .toggle-checkbox:checked ~ .block {
         background-color: #2563eb;
     }
 </style>
@@ -47,15 +47,32 @@
         <form id="prediction-form" class="space-y-6">
             
             <div>
-                <label for="user_id" class="block text-sm font-medium text-gray-700 mb-1">Pilih Orang (Opsional):</label>
-                <div class="flex items-center space-x-2">
+                <div class="flex justify-between items-center mb-1">
+                    <label for="user_id" class="block text-sm font-medium text-gray-700">Pilih Orang (Opsional):</label>
+                    
+                <label for="new-user-switch" class="flex items-center cursor-pointer">
+                    <span class="text-sm font-medium text-gray-700 mr-3">Input Nama Baru</span>
+                    <div class="relative">
+                        {{-- Diubah agar sama dengan switch sensor dan ditambah class toggle-checkbox --}}
+                        <input type="checkbox" id="new-user-switch" class="toggle-checkbox absolute w-full h-full opacity-0 cursor-pointer">
+                        <div class="block bg-gray-200 w-12 h-6 rounded-full transition"></div>
+                        <div class="dot absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition"></div>
+                    </div>
+                </label>
+                </div>
+
+                {{-- KONTainer untuk dropdown dan input teks --}}
+                <div id="user-input-container">
+                    {{-- Dropdown Pengguna Lama (default) --}}
                     <select id="user_id" class="w-full mt-1 block px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 bg-white">
                         <option value="">-- Pilih Pengguna --</option>
-                        {{-- Data $users dari controller ditampilkan di sini --}}
                         @foreach ($users as $user)
                             <option value="{{ $user->id }}">{{ $user->name }}</option>
                         @endforeach
                     </select>
+
+                    {{-- Input Teks Pengguna Baru (hidden by default) --}}
+                    <input type="text" id="new_user_name" placeholder="Masukkan nama pengguna baru" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm" style="display: none;">
                 </div>
             </div>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -82,7 +99,7 @@
                     <div class="flex items-center mt-1 flex-shrink-0">
                         <label for="sensor-switch" class="flex items-center cursor-pointer">
                             <div class="relative">
-                                <input type="checkbox" id="sensor-switch" class="absolute w-full h-full opacity-0 cursor-pointer">
+                                <input type="checkbox" id="sensor-switch" class="toggle-checkbox absolute w-full h-full opacity-0 cursor-pointer">
                                 <div class="block bg-gray-200 w-12 h-6 rounded-full transition"></div>
                                 <div class="dot absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition"></div>
                             </div>

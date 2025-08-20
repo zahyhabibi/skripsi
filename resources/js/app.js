@@ -12,6 +12,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const heartRateInput = document.getElementById('heart_rate');
     const sensorSwitch = document.getElementById('sensor-switch');
     const sensorStatusText = document.getElementById('sensor-status-text');
+    const newUserSwitch = document.getElementById('new-user-switch');
+    const newUserNameInput = document.getElementById('new_user_name');
     
     // Variabel untuk menyimpan BPM rata-rata sebelum diganti oleh sensor
     let originalBpm = null;
@@ -27,6 +29,26 @@ document.addEventListener('DOMContentLoaded', () => {
     // =======================================================
     // === EVENT LISTENERS (BAGIAN INI YANG DIPERBAIKI) ======
     // =======================================================
+
+    newUserSwitch.addEventListener('change', (event) => {
+    if (event.target.checked) {
+        // JIKA SWITCH DINYALAKAN (Input Nama Baru)
+        userSelect.style.display = 'none'; // Sembunyikan dropdown
+        newUserNameInput.style.display = 'block'; // Tampilkan input teks
+
+        // Reset pilihan dropdown & trigger event change untuk mengosongkan form
+        if (userSelect.value !== '') {
+            userSelect.value = '';
+            userSelect.dispatchEvent(new Event('change'));
+        }
+
+    } else {
+        // JIKA SWITCH DIMATIKAN (Pilih Pengguna Lama)
+        userSelect.style.display = 'block'; // Tampilkan dropdown
+        newUserNameInput.style.display = 'none'; // Sembunyikan input teks
+        newUserNameInput.value = ''; // Kosongkan nilai input nama baru
+    }
+});
 
     // 1. FUNGSI AUTO-FILL: Saat user dipilih dari dropdown
    userSelect.addEventListener('change', async (event) => {
