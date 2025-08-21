@@ -42,7 +42,7 @@ COPY --from=frontend /app/public/build ./public/build
 RUN composer dump-autoload -o
 
 # Permission untuk storage/cache
-RUN chown -R www-data:www-data storage bootstrap/cache
+RUN chown -R www-data:www-data /var/www/html
 
 # Entrypoint: siapkan kredensial Firebase & jalankan Apache
 COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
