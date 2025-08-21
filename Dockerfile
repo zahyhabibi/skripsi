@@ -4,28 +4,32 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm ci
 COPY . .
-# Hasil default Laravel Vite -> public/build
-RUN npm run build
+RUN npm run build  # output: public/build
 
 # ---------- Stage 2: App (PHP + Apache) ----------
 FROM php:8.2-apache
 
-# Aktifkan mod_rewrite dan ganti DocumentRoot ke public
+# Apache: aktifkan rewrite & set DocumentRoot ke public
 RUN a2enmod rewrite
 ENV APACHE_DOCUMENT_ROOT=/var/www/html/public
 RUN sed -ri -e 's!/var/www/html!/var/www/html/public!g' /etc/apache2/sites-available/*.conf \
-    && sed -ri -e 's!/var/www/!/var/www/html/public!g' /etc/apache2/apache2.conf
+    && sed -ri -e 's!<Directory /var/www/>!<Directory /var/www/html/public/>!g' /etc/apache2/apache2.conf \
+    && echo "ServerName localhost" > /etc/apache2/conf-available/servername.conf \
+    && a2enconf servername
 
 WORKDIR /var/www/html
 
-# Dependensi PHP yang umum untuk Laravel
-RUN apt-get update && apt-get install -y \
-    git unzip libzip-dev \
+# PHP deps untuk Laravel
+RUN apt-get update && apt-get install -y git unzip libzip-dev \
  && docker-php-ext-install pdo_mysql bcmath zip \
  && rm -rf /var/lib/apt/lists/*
 
-# Composer
+# Composer (copy biner)
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
+
+# Copy composer files dulu (biar cache efisien), lalu install vendor
+COPY composer.json composer.lock ./
+RUN composer install --no-dev --prefer-dist --no-interaction --no-progress --no-scripts
 
 # Copy source code
 COPY . .
@@ -33,17 +37,16 @@ COPY . .
 # Copy hasil build Vite
 COPY --from=frontend /app/public/build ./public/build
 
-# Install vendor (production)
-RUN composer install --no-dev --prefer-dist --no-interaction --no-progress
+# Optimize autoload
+RUN composer dump-autoload -o
 
+# Permission untuk storage/cache
+RUN chown -R www-data:www-data storage bootstrap/cache
+
+# Entrypoint: siapkan kredensial Firebase & jalankan Apache
 COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
 EXPOSE 80
-CMD ["/usr/local/bin/docker-entrypoint.sh"]
-
-# Permission untuk cache/logs (opsional)
-RUN chown -R www-data:www-data storage bootstrap/cache
-
-EXPOSE 80
+ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
 CMD ["apache2-foreground"]
