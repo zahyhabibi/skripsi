@@ -4,12 +4,13 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm ci
 COPY . .
-RUN npm run build  # output: public/build
+# Jalankan build Vite. Jika gagal, seluruh proses akan berhenti.
+RUN npm run build
 
 # ---------- Stage 2: App (PHP + Apache) ----------
 FROM php:8.2-apache
 
-# Apache: aktifkan rewrite & set DocumentRoot ke public
+# Konfigurasi Apache: Aktifkan rewrite, set DocumentRoot, dan IZINKAN .htaccess
 RUN a2enmod rewrite
 ENV APACHE_DOCUMENT_ROOT=/var/www/html/public
 RUN sed -ri -e 's!/var/www/html!/var/www/html/public!g' /etc/apache2/sites-available/*.conf \
@@ -20,31 +21,34 @@ RUN sed -ri -e 's!/var/www/html!/var/www/html/public!g' /etc/apache2/sites-avail
 
 WORKDIR /var/www/html
 
-# PHP deps untuk Laravel
+# Install dependensi PHP untuk Laravel
 RUN apt-get update && apt-get install -y git unzip libzip-dev \
  && docker-php-ext-install pdo_mysql bcmath zip \
  && rm -rf /var/lib/apt/lists/*
 
-# Composer (copy biner)
+# Install Composer
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 
-# Copy composer files dulu (biar cache efisien), lalu install vendor
+# Install dependensi vendor
 COPY composer.json composer.lock ./
-RUN composer install --no-dev --prefer-dist --no-interaction --no-progress --no-scripts
+RUN composer install --no-dev --prefer-dist --no-interaction
 
-# Copy source code
+# Salin semua kode sumber aplikasi
 COPY . .
 
-# Copy hasil build Vite
+# Salin hasil build Vite dari stage sebelumnya
 COPY --from=frontend /app/public/build ./public/build
 
-# Optimize autoload
-RUN composer dump-autoload -o
+# VERIFIKASI: Pastikan manifest.json ada, jika tidak, gagalkan build
+RUN if [ ! -f public/build/manifest.json ]; then echo "Vite manifest.json not found after copy!" && exit 1; fi
 
-# Permission untuk storage/cache
+# Optimasi autoloader
+RUN composer dump-autoload --no-dev -o
+
+# PERBAIKAN FINAL: Ubah kepemilikan SEMUA file ke www-data
 RUN chown -R www-data:www-data /var/www/html
 
-# Entrypoint: siapkan kredensial Firebase & jalankan Apache
+# Setel Entrypoint
 COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
