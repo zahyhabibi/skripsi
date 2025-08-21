@@ -4,7 +4,6 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm ci
 COPY . .
-# Jalankan build Vite. Jika gagal, seluruh proses akan berhenti.
 RUN npm run build
 
 # ---------- Stage 2: App (PHP + Apache) ----------
@@ -29,17 +28,18 @@ RUN apt-get update && apt-get install -y git unzip libzip-dev \
 # Install Composer
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 
-# Install dependensi vendor
-COPY composer.json composer.lock ./
-RUN composer install --no-dev --prefer-dist --no-interaction
+# === PERUBAHAN URUTAN DIMULAI DI SINI ===
 
-# Salin semua kode sumber aplikasi
+# Salin semua kode sumber aplikasi TERLEBIH DAHULU
 COPY . .
+
+# Baru jalankan composer install setelah semua file ada
+RUN composer install --no-dev --prefer-dist --no-interaction
 
 # Salin hasil build Vite dari stage sebelumnya
 COPY --from=frontend /app/public/build ./public/build
 
-# VERIFIKASI: Pastikan manifest.json ada, jika tidak, gagalkan build
+# VERIFIKASI: Pastikan manifest.json ada
 RUN if [ ! -f public/build/manifest.json ]; then echo "Vite manifest.json not found after copy!" && exit 1; fi
 
 # Optimasi autoloader
