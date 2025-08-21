@@ -5,7 +5,7 @@ echo "[ENTRYPOINT] Script starting..."
 
 APP_ROOT="/var/www/html"
 TARGET_DIR="$APP_ROOT/storage/app/firebase"
-DEFAULT_FILE="$TARGET_DIR/service-account.json"
+DEFAULT_FILE="$TARGET_DIR/iotskripsi-7d02b-firebase-adminsdk-fbsvc-84a3543652.json"
 
 # Siapkan folder kredensial
 mkdir -p "$TARGET_DIR"
