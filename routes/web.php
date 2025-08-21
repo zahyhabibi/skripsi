@@ -19,3 +19,7 @@ Route::get('/debug-firebase', function () {
         'readable' => is_readable($path),
     ];
 });
+
+Route::get('/health', function () {
+    return response('OK', 200);
+});
