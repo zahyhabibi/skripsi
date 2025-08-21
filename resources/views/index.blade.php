@@ -8,36 +8,36 @@
 
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
     
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+
     <script src="https://cdn.tailwindcss.com"></script>
+
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-database-compat.js"></script>
     <script>
-    const firebaseConfig = {
-        apiKey: "{{ config('services.firebase.api_key') }}",
-        authDomain: "{{ config('services.firebase.project_id') }}.firebaseapp.com",
-        databaseURL: "{{ config('services.firebase.database.url') }}",
-        projectId: "{{ config('services.firebase.project_id') }}",
-    };
-</script>
-
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+        // Inisialisasi Firebase
+        const firebaseConfig = {
+            apiKey: "{{ config('services.firebase.api_key') }}",
+            authDomain: "{{ config('services.firebase.project_id') }}.firebaseapp.com",
+            databaseURL: "{{ config('services.firebase.database.url') }}",
+            projectId: "{{ config('services.firebase.project_id') }}",
+        };
+        firebase.initializeApp(firebaseConfig);
+    </script>
+    
     <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
     <script type="module">
         import { client } from "https://cdn.jsdelivr.net/npm/@gradio/client@0.1.4/dist/index.min.js";
-        window.gradio_client = client; 
+        window.gradio_client = client; // Membuatnya tersedia secara global untuk app.js
     </script>
-    @vite('resources/js/app.js')
 
-<style>
-    body { font-family: 'Inter', sans-serif; }
+    @vite(['resources/css/app.css', 'resources/js/app.js'])
 
-    .toggle-checkbox:checked ~ .dot {
-        transform: translateX(140%);
-    }
-    .toggle-checkbox:checked ~ .block {
-        background-color: #2563eb;
-    }
-</style>
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .toggle-checkbox:checked ~ .dot { transform: translateX(140%); }
+        .toggle-checkbox:checked ~ .block { background-color: #2563eb; }
+    </style>
 </head>
 <body class="bg-gradient-to-br from-blue-100 to-indigo-200 min-h-screen flex items-center justify-center p-4">
 
@@ -58,7 +58,6 @@
                 <label for="new-user-switch" class="flex items-center cursor-pointer">
                     <span class="text-sm font-medium text-gray-700 mr-3">Input Nama Baru</span>
                     <div class="relative">
-                        {{-- Diubah agar sama dengan switch sensor dan ditambah class toggle-checkbox --}}
                         <input type="checkbox" id="new-user-switch" class="toggle-checkbox absolute w-full h-full opacity-0 cursor-pointer">
                         <div class="block bg-gray-200 w-12 h-6 rounded-full transition"></div>
                         <div class="dot absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition"></div>
@@ -66,9 +65,7 @@
                 </label>
                 </div>
 
-                {{-- KONTainer untuk dropdown dan input teks --}}
                 <div id="user-input-container">
-                    {{-- Dropdown Pengguna Lama (default) --}}
                     <select id="user_id" class="w-full mt-1 block px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 bg-white">
                         <option value="">-- Pilih Pengguna --</option>
                         @foreach ($users as $user)
@@ -76,7 +73,6 @@
                         @endforeach
                     </select>
 
-                    {{-- Input Teks Pengguna Baru (hidden by default) --}}
                     <input type="text" id="new_user_name" placeholder="Masukkan nama pengguna baru" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm" style="display: none;">
                 </div>
             </div>
@@ -132,7 +128,5 @@
         <div id="result-container" class="mt-6" style="display: none;"></div>
     </main>
 
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
-
-</body>
+    </body>
 </html>
