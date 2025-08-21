@@ -23,3 +23,10 @@ Route::get('/debug-firebase', function () {
 Route::get('/health', function () {
     return response('OK', 200);
 });
+
+Route::get('/debug-config-url', function () {
+    echo "<h1>Hasil Debug URL</h1>";
+    echo "<strong>config('app.url'): </strong>" . config('app.url') . "<br>";
+    echo "<strong>asset('test.js'): </strong>" . asset('test.js') . "<br>";
+    echo "<strong>request()->isSecure(): </strong>" . (request()->isSecure() ? 'true' : 'false') . "<br>";
+});
