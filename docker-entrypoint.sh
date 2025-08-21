@@ -1,41 +1,37 @@
 #!/usr/bin/env sh
-set -eux
+set -eu
 
 APP_ROOT="/var/www/html"
 TARGET_DIR="$APP_ROOT/storage/app/firebase"
-TARGET_FILE="$TARGET_DIR/iotskripsi-7d02b-firebase-adminsdk-fbsvc-73705e57ea.json"
-
-echo "[entrypoint] start"
-echo "[entrypoint] APP_ROOT=$APP_ROOT"
-echo "[entrypoint] TARGET_DIR=$TARGET_DIR"
-echo "[entrypoint] TARGET_FILE=$TARGET_FILE"
+DEFAULT_FILE="$TARGET_DIR/service-account.json"
 
 mkdir -p "$TARGET_DIR"
 
-# Tulis file dari ENV (pakai PHP untuk decode base64 agar 100% ada)
-if [ -n "${FIREBASE_CREDENTIALS_BASE64:-}" ]; then
-  echo "[entrypoint] writing credential from FIREBASE_CREDENTIALS_BASE64 (len=${#FIREBASE_CREDENTIALS_BASE64})"
-  php -r 'file_put_contents("'"$TARGET_FILE"'", base64_decode(getenv("FIREBASE_CREDENTIALS_BASE64")));'
+# Path tujuan: dari ENV kalau ada, kalau tidak pakai default
+TARGET_FILE="${FIREBASE_PRIVATE_KEY_PATH:-$DEFAULT_FILE}"
+
+# Tulis kredensial dari ENV (dukung 3 nama env)
+if [ -n "${FIREBASE_CREDENTIALS:-}" ]; then
+  printf "%s" "$FIREBASE_CREDENTIALS" > "$TARGET_FILE"
 elif [ -n "${FIREBASE_CREDENTIALS_JSON:-}" ]; then
-  echo "[entrypoint] writing credential from FIREBASE_CREDENTIALS_JSON (raw json)"
-  php -r 'file_put_contents("'"$TARGET_FILE"'", getenv("FIREBASE_CREDENTIALS_JSON"));'
+  printf "%s" "$FIREBASE_CREDENTIALS_JSON" > "$TARGET_FILE"
+elif [ -n "${FIREBASE_CREDENTIALS_BASE64:-}" ]; then
+  php -r 'file_put_contents("'"$TARGET_FILE"'", base64_decode(getenv("FIREBASE_CREDENTIALS_BASE64")));'
 else
-  echo "[entrypoint][WARN] FIREBASE_CREDENTIALS_* env not set; NOT creating credential file" >&2
+  echo "[entrypoint] ERROR: no FIREBASE_* credentials env set" >&2
 fi
 
-# Tunjukkan hasilnya di log
-if [ -f "$TARGET_FILE" ]; then
-  echo "[entrypoint] file created:"
-  ls -l "$TARGET_FILE"
-  echo "[entrypoint] first 2 lines:"
-  head -n 2 "$TARGET_FILE" || true
+# Set permission & export var
+if [ -s "$TARGET_FILE" ]; then
+  chmod 600 "$TARGET_FILE" || true
+  chown -R www-data:www-data "$APP_ROOT/storage" "$APP_ROOT/bootstrap/cache" || true
+  export GOOGLE_APPLICATION_CREDENTIALS="${GOOGLE_APPLICATION_CREDENTIALS:-$TARGET_FILE}"
+  echo "[entrypoint] Firebase credentials written to $TARGET_FILE"
 else
-  echo "[entrypoint][ERROR] credential file missing at $TARGET_FILE" >&2
+  echo "[entrypoint] ERROR: $TARGET_FILE missing or empty" >&2
 fi
 
-# Permission aman + writable untuk Laravel
-chmod 600 "$TARGET_FILE" || true
-chown -R www-data:www-data "$APP_ROOT/storage" "$APP_ROOT/bootstrap/cache" || true
+# (opsional) hilangkan warning AH00558
+# echo "ServerName localhost" > /etc/apache2/conf-available/servername.conf && a2enconf servername || true
 
-echo "[entrypoint] starting apache..."
 exec apache2-foreground
