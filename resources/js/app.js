@@ -1,5 +1,3 @@
-import { Client } from "@gradio/client";
-
 document.addEventListener('DOMContentLoaded', () => {
     // === Inisialisasi Semua Elemen HTML ===
     const form = document.getElementById('prediction-form');
@@ -169,7 +167,7 @@ sensorSwitch.addEventListener('change', async (event) => {
 
     async function fetchPrediction(data) {
         try {
-            const client = await Client.connect("zahyhabibi/heartrate-app-ultimate");
+            const client = await window.gradio_client.connect("zahyhabibi/heartrate-app-ultimate");
             const result = await client.predict("/predict", {
                 age: data.age,
                 gender: data.gender,
