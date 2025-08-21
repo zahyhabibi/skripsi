@@ -18,13 +18,9 @@ return [
      */
 
 
-    'credentials' => storage_path('app/'.env('FIREBASE_PRIVATE_KEY_PATH')),
+    
 
-    'api_key' => env('FIREBASE_API_KEY'),
-
-    'database_url' => env('FIREBASE_DATABASE_URL'),
-
-    'project_id' => env('FIREBASE_PROJECT_ID'),
+ 
 
 
     'projects' => [
