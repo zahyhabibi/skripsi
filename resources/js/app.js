@@ -1,3 +1,5 @@
+import { Client } from "@gradio/client";
+
 document.addEventListener('DOMContentLoaded', () => {
     // === Inisialisasi Semua Elemen HTML ===
     const form = document.getElementById('prediction-form');
@@ -165,21 +167,20 @@ sensorSwitch.addEventListener('change', async (event) => {
     // --- Salin-tempel lagi fungsi-fungsi di bawah ini agar lengkap ---
     // (Fungsi-fungsi ini tidak berubah dari jawaban sebelumnya)
 
-        async function fetchPrediction(data) {
-                try {
-                    // Gunakan client yang sudah dimuat di window
-                    const client = await window.gradio_client.connect("zahyhabibi/heartrate-app-ultimate");
-                    const result = await client.predict("/predict", {
-                        age: data.age,
-                        gender: data.gender,
-                        heart_rate: data.heart_rate,
-                    });
-                    return result.data[0];
-                } catch (error) {
-                    console.error("API call failed for:", data, error);
-                    return { error: "API Call Failed" };
-                }
-            }
+    async function fetchPrediction(data) {
+        try {
+            const client = await Client.connect("zahyhabibi/heartrate-app-ultimate");
+            const result = await client.predict("/predict", {
+                age: data.age,
+                gender: data.gender,
+                heart_rate: data.heart_rate,
+            });
+            return result.data[0];
+        } catch (error) {
+            console.error("API call failed for:", data, error);
+            return { error: "API Call Failed" };
+        }
+    }
 
 async function savePredictionToDatabase(dataToSave, saveButton) {
     try {
